@@ -5,12 +5,52 @@ import Link from 'next/link';
 import { getSolutions } from '@/lib/db';
 import type { Solution } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Badge, Button, Input } from '@/components/ui';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ArrowRight, Tag, CalendarDays } from 'lucide-react';
 import Image from 'next/image';
+import { useEffect, useState } from 'react'; // Import useEffect and useState
 
-export default async function ProblemListPage() {
-  const solutions = await getSolutions(); // This now only fetches approved solutions
+export default function ProblemListPage() {
+  // Use state to hold solutions, fetch on client side
+  const [solutions, setSolutions] = useState<Solution[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    async function fetchSolutions() {
+      setIsLoading(true);
+      try {
+        const fetchedSolutions = await getSolutions(); // Fetches approved solutions
+        setSolutions(fetchedSolutions);
+      } catch (error) {
+        console.error("Failed to fetch solutions:", error);
+        // Handle error appropriately, maybe set an error state
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchSolutions();
+  }, []);
+
+  const filteredSolutions = solutions.filter(solution =>
+    solution.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    solution.problemId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    solution.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    solution.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+
+  if (isLoading) {
+    // Optional: Add a loading skeleton or spinner
+    return (
+      <div className="space-y-8 py-8 text-center">
+        <p>Loading solutions...</p>
+      </div>
+      );
+  }
+
 
   return (
     <div className="space-y-8">
@@ -25,33 +65,39 @@ export default async function ProblemListPage() {
 
       <div className="max-w-md mx-auto mb-8">
         <Input
-          placeholder="Search solutions by title..."
-          // TODO: Add state and filtering logic
+          placeholder="Search solutions by title, problem, category, or tag..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full"
         />
       </div>
 
-      {solutions.length === 0 ? (
+      {filteredSolutions.length === 0 ? (
         <Card className="text-center p-10">
-          <CardTitle className="text-2xl font-semibold">No Approved Solutions Yet</CardTitle>
+          <CardTitle className="text-2xl font-semibold">
+            {solutions.length === 0 ? 'No Approved Solutions Yet' : 'No Solutions Found'}
+          </CardTitle>
           <CardDescription className="mt-2 text-muted-foreground">
-            Check back later or submit your own solution! Approved solutions will appear here.
+             {solutions.length === 0 ? 'Check back later or submit your own solution! Approved solutions will appear here.' : 'Try adjusting your search term.'}
           </CardDescription>
-          <Button asChild className="mt-6">
-            <Link href="/submit">Submit a Solution</Link>
-          </Button>
+           {solutions.length === 0 && (
+             <Button asChild className="mt-6">
+               <Link href="/submit">Submit a Solution</Link>
+             </Button>
+           )}
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {solutions.map((solution: Solution) => (
+          {filteredSolutions.map((solution: Solution) => (
             <Card key={solution.id} className="flex flex-col overflow-hidden rounded-lg shadow-lg transition-all hover:shadow-xl">
               <CardHeader className="p-4">
                 <div className="aspect-[16/9] relative w-full overflow-hidden rounded-md">
-                   <Image 
-                    src={`https://picsum.photos/seed/${solution.id}/400/225`} 
-                    alt={solution.title} 
-                    layout="fill" 
-                    objectFit="cover"
+                   <Image
+                    src={`https://picsum.photos/seed/${solution.id}/400/225`}
+                    alt={solution.title}
+                    fill // Use fill instead of layout
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" // Add sizes prop
+                    style={{ objectFit: 'cover' }} // Use style prop for objectFit
                     data-ai-hint="abstract code"
                     className="rounded-md"
                   />

@@ -1,7 +1,7 @@
 import type { Solution, SolutionSection, SolutionSubmission } from '@/lib/types';
-import { revalidatePath } from 'next/cache';
-import { connectToDatabase } from '@/lib/db'; // Import the database connection function
+// Removed: import { connectToDatabase } from '@/lib/db'; // This was causing the duplicate definition error
 import { Collection } from 'mongodb';
+import { MongoClient, Db } from 'mongodb'; // Moved MongoClient and Db import to the top for clarity
 
 // Get the MongoDB collection for solutions
 async function getSolutionsCollection(): Promise<Collection<Solution>> {
@@ -11,13 +11,15 @@ async function getSolutionsCollection(): Promise<Collection<Solution>> {
 
 export async function getSolutions(): Promise<Solution[]> {
   const collection = await getSolutionsCollection();
-  const solutions = await collection.find({ isApproved: true }).toArray();
+  // Fetch only approved solutions for the public list
+  const solutions = await collection.find({ isApproved: true }).sort({ createdAt: -1 }).toArray();
   return solutions as Solution[]; // Cast to Solution[]
 }
 
 export async function getAllSolutionsForAdmin(): Promise<Solution[]> {
   const collection = await getSolutionsCollection();
-  const solutions = await collection.find({}).toArray();
+  // Fetch all solutions for the admin dashboard, regardless of approval status
+  const solutions = await collection.find({}).sort({ createdAt: -1 }).toArray();
   return solutions as Solution[]; // Return all solutions for admin, cast to Solution[]
 }
 
@@ -31,41 +33,37 @@ export async function addSolution(data: SolutionSubmission): Promise<Solution> {
   const collection = await getSolutionsCollection();
   const now = new Date().toISOString();
 
-  // Generate a simple slug, ensuring uniqueness might require a loop or more robust method
-  const baseSlug = data.title.toLowerCase().replace(/\s+/g, '-');
+  // Generate a simple slug (id) from the title
+  const baseSlug = data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   let id = baseSlug;
   let counter = 1;
+  // Ensure ID uniqueness
   while (await collection.findOne({ id })) {
     id = `${baseSlug}-${counter}`;
     counter++;
   }
 
   const newSolution: Solution = {
-    id: id,
+    id: id, // Use the generated unique ID
     title: data.title,
     problemId: data.problemId,
     problemStatementLink: data.problemStatementLink,
-    author: 'CSES Solver Team',
+    author: 'CSES Solver Team', // Consider making this dynamic if users can submit
     createdAt: now,
     updatedAt: now,
     category: data.category,
     tags: data.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
-    sections: data.sections.map(section => ({
-      ...section,
-      // MongoDB will generate _id for sections, we don't need client-side UUIDs here
-      language: section.type === 'code' ? section.language : undefined
-    }) as SolutionSection), // Cast to SolutionSection
-    isApproved: false, // New solutions are not approved by default
+    sections: data.sections.map((section, index) => ({
+      id: `${id}-section-${index + 1}`, // Assign a unique ID to each section
+      type: section.type,
+      content: section.content,
+      language: section.type === 'code' ? section.language || 'plaintext' : undefined,
+    })),
+    isApproved: false, // New solutions require approval
   };
 
   await collection.insertOne(newSolution);
 
-  revalidatePath('/');
-  revalidatePath('/admin'); // Revalidate admin page
-  revalidatePath(`/problems/${newSolution.id}`);
-  if (solutions.length > 100) { 
-    solutions.pop();
-  }
   return newSolution;
 }
 
@@ -77,28 +75,25 @@ export async function updateSolution(id: string, updatedSections: SolutionSectio
     { id },
     {
       $set: {
-        sections: updatedSections.map(section => ({
-          ...section,
+        sections: updatedSections.map(section => ({ // Ensure section ID is preserved
+          id: section.id,
+          type: section.type,
+          content: section.content,
           language: section.type === 'code' ? section.language : undefined
-        }) as SolutionSection), // Cast to SolutionSection
+        })),
         updatedAt: now,
       },
     },
     { returnDocument: 'after' } // Return the updated document
   );
 
-  revalidatePath(`/problems/${id}`);
-  revalidatePath('/admin');
   return result.value as Solution | undefined; // Cast to Solution | undefined
 }
+
 
 export async function toggleSolutionApproval(id: string): Promise<Solution | undefined> {
   const collection = await getSolutionsCollection();
   const now = new Date().toISOString();
-
-  revalidatePath('/');
-  revalidatePath('/admin');
-  revalidatePath(`/problems/${id}`);
 
   const solution = await collection.findOne({ id });
   if (!solution) {
@@ -112,4 +107,31 @@ export async function toggleSolutionApproval(id: string): Promise<Solution | und
   );
 
   return result.value as Solution | undefined; // Cast to Solution | undefined
+}
+
+// Ensure connectToDatabase exists and is correctly implemented/imported elsewhere
+// Assuming connectToDatabase handles MongoDB connection and returns the Db instance
+
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
+const DB_NAME = process.env.DB_NAME || 'csesSolverBlogs';
+
+let cachedDb: Db | null = null;
+
+export async function connectToDatabase(): Promise<Db> {
+  if (cachedDb) {
+    return cachedDb;
+  }
+
+  if (!MONGODB_URI) {
+    throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
+  }
+    if (!DB_NAME) {
+    throw new Error('Please define the DB_NAME environment variable inside .env.local');
+  }
+
+  const client = await MongoClient.connect(MONGODB_URI);
+
+  const db = client.db(DB_NAME);
+  cachedDb = db;
+  return db;
 }
