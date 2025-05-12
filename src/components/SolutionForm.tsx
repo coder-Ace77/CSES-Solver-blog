@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { ChangeEvent } from 'react';
@@ -11,9 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { PlusCircle, Trash2, Wand2, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import type { SolutionSection, SolutionSectionType, SolutionSubmission } from '@/lib/types';
-import { createSolutionAction, suggestTagsAndCategoryAction } from '@/lib/actions';
+import { createSolutionAction } from '@/lib/actions';
 import { useFormState } from 'react-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -21,6 +22,7 @@ import { useRouter } from 'next/navigation';
 const sectionSchema = z.object({
   type: z.enum(['heading', 'paragraph', 'code', 'equation', 'hint']),
   content: z.string().min(1, "Section content cannot be empty."),
+  language: z.string().optional(), // Optional language for code snippets
 });
 
 const solutionFormSchema = z.object({
@@ -36,11 +38,31 @@ type SolutionFormData = z.infer<typeof solutionFormSchema>;
 
 const initialFormState = { message: "", success: false, solutionId: undefined };
 
+const popularLanguages = [
+  { value: 'plaintext', label: 'Plain Text' },
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'python', label: 'Python' },
+  { value: 'java', label: 'Java' },
+  { value: 'csharp', label: 'C#' },
+  { value: 'cpp', label: 'C++' },
+  { value: 'c', label: 'C' },
+  { value: 'go', label: 'Go' },
+  { value: 'ruby', label: 'Ruby' },
+  { value: 'php', label: 'PHP' },
+  { value: 'swift', label: 'Swift' },
+  { value: 'kotlin', label: 'Kotlin' },
+  { value: 'rust', label: 'Rust' },
+  { value: 'sql', label: 'SQL' },
+  { value: 'bash', label: 'Bash/Shell' },
+  { value: 'html', label: 'HTML' },
+  { value: 'css', label: 'CSS' },
+];
+
+
 export function SolutionForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [formState, formAction] = useFormState(createSolutionAction, initialFormState);
-  const [isAiLoading, setIsAiLoading] = useState(false);
 
   const { control, handleSubmit, register, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<SolutionFormData>({
     resolver: zodResolver(solutionFormSchema),
@@ -48,7 +70,7 @@ export function SolutionForm() {
       title: '',
       problemId: '',
       problemStatementLink: '',
-      sections: [{ type: 'paragraph', content: '' }],
+      sections: [{ type: 'paragraph', content: '', language: undefined }],
       tags: '',
       category: '',
     },
@@ -60,8 +82,6 @@ export function SolutionForm() {
   });
 
   const watchedSections = watch('sections');
-  const watchedTitle = watch('title');
-  const watchedProblemId = watch('problemId');
 
   useEffect(() => {
     if (formState.message) {
@@ -71,39 +91,23 @@ export function SolutionForm() {
         variant: formState.success ? 'default' : 'destructive',
       });
       if (formState.success && formState.solutionId) {
-        reset(); // Reset form on successful submission
+        reset(); 
         router.push(`/problems/${formState.solutionId}`);
       }
     }
   }, [formState, toast, reset, router]);
-
-  const handleSuggestTagsCategories = async () => {
-    setIsAiLoading(true);
-    const sectionsText = watchedSections.map(s => s.content).join('\n\n');
-    const result = await suggestTagsAndCategoryAction({
-      title: watchedTitle,
-      problemId: watchedProblemId,
-      sectionsText,
-    });
-
-    if ('error' in result) {
-      toast({ title: 'AI Suggestion Error', description: result.error, variant: 'destructive' });
-    } else {
-      setValue('tags', result.tags.join(', '));
-      if (result.categories.length > 0) {
-        setValue('category', result.categories[0]); // Assuming single category for simplicity
-      }
-      toast({ title: 'AI Suggestions Applied', description: 'Tags and category have been populated.' });
-    }
-    setIsAiLoading(false);
-  };
   
   const onSubmit = (data: SolutionFormData) => {
     const formData = new FormData();
     formData.append('title', data.title);
     formData.append('problemId', data.problemId);
     formData.append('problemStatementLink', data.problemStatementLink || '');
-    formData.append('sections', JSON.stringify(data.sections)); // Stringify sections
+    
+    const sectionsWithPotentiallyUndefinedLanguage = data.sections.map(s => ({
+      ...s,
+      language: s.type === 'code' ? s.language || 'plaintext' : undefined,
+    }));
+    formData.append('sections', JSON.stringify(sectionsWithPotentiallyUndefinedLanguage));
     formData.append('tags', data.tags);
     formData.append('category', data.category);
     formAction(formData);
@@ -149,7 +153,18 @@ export function SolutionForm() {
                   control={control}
                   name={`sections.${index}.type`}
                   render={({ field: controllerField }) => (
-                    <Select onValueChange={controllerField.onChange} defaultValue={controllerField.value}>
+                    <Select 
+                      onValueChange={(value) => {
+                        controllerField.onChange(value);
+                        // Reset language if type is not code
+                        if (value !== 'code') {
+                          setValue(`sections.${index}.language`, undefined);
+                        } else {
+                           setValue(`sections.${index}.language`, 'plaintext'); // Default to plaintext
+                        }
+                      }} 
+                      defaultValue={controllerField.value}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select section type" />
                       </SelectTrigger>
@@ -164,6 +179,30 @@ export function SolutionForm() {
                   )}
                 />
                 {errors.sections?.[index]?.type && <p className="text-sm text-destructive mt-1">{errors.sections[index]?.type?.message}</p>}
+                
+                {watchedSections[index]?.type === 'code' && (
+                  <div className="mt-2">
+                    <Label htmlFor={`sections.${index}.language`} className="font-medium">Code Language</Label>
+                     <Controller
+                        control={control}
+                        name={`sections.${index}.language`}
+                        defaultValue="plaintext"
+                        render={({ field: controllerField }) => (
+                          <Select onValueChange={controllerField.onChange} value={controllerField.value || 'plaintext'}>
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="Select language (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {popularLanguages.map(lang => (
+                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    {errors.sections?.[index]?.language && <p className="text-sm text-destructive mt-1">{errors.sections[index]?.language?.message}</p>}
+                  </div>
+                )}
 
                 <Textarea
                   {...register(`sections.${index}.content`)}
@@ -179,7 +218,7 @@ export function SolutionForm() {
                 {errors.sections?.[index]?.content && <p className="text-sm text-destructive mt-1">{errors.sections[index]?.content?.message}</p>}
               </Card>
             ))}
-            <Button type="button" variant="outline" onClick={() => append({ type: 'paragraph', content: '' })} className="w-full">
+            <Button type="button" variant="outline" onClick={() => append({ type: 'paragraph', content: '', language: undefined })} className="w-full">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Section
             </Button>
              {errors.sections && typeof errors.sections.message === 'string' && <p className="text-sm text-destructive mt-1">{errors.sections.message}</p>}
@@ -197,13 +236,9 @@ export function SolutionForm() {
             {errors.category && <p className="text-sm text-destructive mt-1">{errors.category.message}</p>}
           </div>
           
-          <Button type="button" onClick={handleSuggestTagsCategories} variant="outline" className="w-full" disabled={isAiLoading || !watchedTitle || !watchedProblemId || watchedSections.length === 0}>
-            {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-            Suggest Tags & Category (AI)
-          </Button>
         </CardContent>
         <CardFooter>
-          <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting || isAiLoading}>
+          <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting}>
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Submit Solution
           </Button>
@@ -212,3 +247,4 @@ export function SolutionForm() {
     </Card>
   );
 }
+

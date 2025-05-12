@@ -1,8 +1,9 @@
+
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/icons/Logo';
-import { LayoutGrid, PlusCircle } from 'lucide-react';
+import { LayoutGrid, PlusCircle, ShieldCheck } from 'lucide-react';
 
 export function Navbar() {
   return (
@@ -22,6 +23,11 @@ export function Navbar() {
               <PlusCircle className="mr-2 h-4 w-4" /> Submit Solution
             </Link>
           </Button>
+          <Button variant="ghost" asChild>
+            <Link href="/admin" className="text-sm font-medium transition-colors hover:text-primary">
+              <ShieldCheck className="mr-2 h-4 w-4" /> Admin
+            </Link>
+          </Button>
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-4">
           <ThemeToggle />
@@ -30,3 +36,4 @@ export function Navbar() {
     </header>
   );
 }
+

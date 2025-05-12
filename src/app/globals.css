@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -92,4 +93,28 @@ body {
   main {
     flex-grow: 1;
   }
+
+  /* Basic styling for code blocks */
+  pre {
+    @apply bg-card p-4 rounded-md overflow-x-auto my-4 shadow-md;
+  }
+  code {
+    @apply font-mono text-sm text-card-foreground;
+  }
+  
+  /* Styling for code blocks with language specified */
+  pre[data-language] {
+     /* Base styling already applied */
+  }
+
+  /* Optional: If you want to add a small label for the language */
+  /* This is now handled within SolutionDisplay.tsx for better component encapsulation */
+  /*
+  pre[data-language]::before {
+    content: attr(data-language);
+    @apply block text-xs text-muted-foreground mb-2 px-1;
+    text-transform: capitalize;
+  }
+  */
 }
+

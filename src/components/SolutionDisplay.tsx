@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Solution, SolutionSection } from '@/lib/types';
@@ -8,9 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { ExternalLink, Lightbulb, Code2, Sigma, ListChecks, Tag, CalendarDays, User, BookOpen, Wand2, Loader2 } from 'lucide-react';
+import { ExternalLink, Lightbulb, Code2, Sigma, ListChecks, Tag, CalendarDays, User, BookOpen, Wand2, Loader2, FilePenLine, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { summarizeTextAction, updateSolutionSectionsAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -28,6 +29,31 @@ export function SolutionDisplay({ solution: initialSolution }: SolutionDisplayPr
   const [editText, setEditText] = useState<string>("");
   const { toast } = useToast();
   const router = useRouter();
+
+  // Effect to update local solution state if initialSolution prop changes (e.g., after admin approval)
+  useEffect(() => {
+    setSolution(initialSolution);
+  }, [initialSolution]);
+
+  if (!solution.isApproved) {
+    return (
+      <Card className="w-full shadow-xl my-8">
+        <CardHeader className="text-center">
+          <ShieldAlert className="mx-auto h-12 w-12 text-destructive" />
+          <CardTitle className="text-2xl font-bold mt-4">Solution Awaiting Approval</CardTitle>
+          <CardDescription className="text-muted-foreground mt-2">
+            This solution is currently under review and not yet publicly visible.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+           <Button asChild variant="outline">
+             <Link href="/">Back to Problem List</Link>
+           </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
 
   const handleSummarize = async (section: SolutionSection) => {
     setIsSummarizing(prev => ({ ...prev, [section.id]: true }));
@@ -52,10 +78,9 @@ export function SolutionDisplay({ solution: initialSolution }: SolutionDisplayPr
     const updatedSolution = await updateSolutionSectionsAction(solution.id, editingSectionId, editText);
     
     if (updatedSolution) {
-      setSolution(updatedSolution); // Update local state with the full updated solution
+      setSolution(updatedSolution); 
       toast({ title: 'Section Updated', description: 'Your changes have been saved.' });
       setEditingSectionId(null);
-      // No need to router.refresh() if revalidatePath is working and we update local state
     } else {
       toast({ title: 'Update Failed', description: 'Could not save changes.', variant: 'destructive' });
     }
@@ -74,7 +99,20 @@ export function SolutionDisplay({ solution: initialSolution }: SolutionDisplayPr
         content = <p className="text-base leading-relaxed my-2">{section.content}</p>;
         break;
       case 'code':
-        content = <pre className="bg-muted p-4 rounded-md overflow-x-auto my-4"><code className="font-mono text-sm text-muted-foreground">{section.content}</code></pre>;
+        content = (
+          <div className="my-4 rounded-md overflow-hidden shadow-md">
+            {section.language && section.language !== 'plaintext' && (
+              <div className="bg-muted text-muted-foreground px-4 py-1.5 text-xs font-medium">
+                Language: {section.language}
+              </div>
+            )}
+            <pre className="bg-card p-4 overflow-x-auto">
+              <code className="font-mono text-sm text-card-foreground" data-language={section.language || 'plaintext'}>
+                {section.content}
+              </code>
+            </pre>
+          </div>
+        );
         break;
       case 'equation':
         content = <div className="text-center p-3 my-4 border border-dashed border-accent rounded-md"><p className="font-mono text-accent-foreground text-lg">{section.content}</p></div>;
@@ -97,7 +135,7 @@ export function SolutionDisplay({ solution: initialSolution }: SolutionDisplayPr
     return (
       <div key={section.id} className="relative group">
         {content}
-        <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 space-x-1">
+        <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 space-x-1 bg-background/80 rounded-bl-md">
             {canSummarize && (
             <Dialog>
                 <DialogTrigger asChild>
@@ -119,7 +157,7 @@ export function SolutionDisplay({ solution: initialSolution }: SolutionDisplayPr
             )}
             {['paragraph', 'hint', 'heading', 'code', 'equation'].includes(section.type) && (
                 <Button variant="ghost" size="icon" onClick={() => handleEditSection(section)} title="Edit Section">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-pen-line"><path d="m18 5-3-3H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2"/><path d="M8 18h1"/><path d="M18.4 9.6a2 2 0 1 1 3 3L17 17l-4 1 1-4Z"/></svg>
+                    <FilePenLine className="h-4 w-4 text-primary" />
                 </Button>
             )}
         </div>
@@ -192,16 +230,4 @@ export function SolutionDisplay({ solution: initialSolution }: SolutionDisplayPr
       </Dialog>
     </Card>
   );
-}
-
-// Helper function to get icon for section type
-function getSectionIcon(type: SolutionSection['type']) {
-  switch (type) {
-    case 'heading': return <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="M3 18V16H21V18H3M3 13V11H21V13H3M3 8V6H21V8H3Z"></path></svg>; // material-symbols:format-h1 (simplified)
-    case 'paragraph': return <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>; // material-symbols:format-paragraph (simplified)
-    case 'code': return <Code2 className="h-5 w-5" />;
-    case 'equation': return <Sigma className="h-5 w-5" />;
-    case 'hint': return <Lightbulb className="h-5 w-5" />;
-    default: return null;
-  }
 }

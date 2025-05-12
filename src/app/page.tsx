@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 import { getSolutions } from '@/lib/db';
 import type { Solution } from '@/lib/types';
@@ -8,7 +9,7 @@ import { ArrowRight, Tag, CalendarDays } from 'lucide-react';
 import Image from 'next/image';
 
 export default async function ProblemListPage() {
-  const solutions = await getSolutions();
+  const solutions = await getSolutions(); // This now only fetches approved solutions
 
   return (
     <div className="space-y-8">
@@ -23,9 +24,9 @@ export default async function ProblemListPage() {
 
       {solutions.length === 0 ? (
         <Card className="text-center p-10">
-          <CardTitle className="text-2xl font-semibold">No Solutions Yet</CardTitle>
+          <CardTitle className="text-2xl font-semibold">No Approved Solutions Yet</CardTitle>
           <CardDescription className="mt-2 text-muted-foreground">
-            Be the first to contribute! Submit a solution to a CSES problem.
+            Check back later or submit your own solution! Approved solutions will appear here.
           </CardDescription>
           <Button asChild className="mt-6">
             <Link href="/submit">Submit a Solution</Link>
@@ -82,3 +83,4 @@ export default async function ProblemListPage() {
     </div>
   );
 }
+
