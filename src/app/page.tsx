@@ -1,10 +1,11 @@
 
+'use client';
+
 import Link from 'next/link';
 import { getSolutions } from '@/lib/db';
 import type { Solution } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge, Button, Input } from '@/components/ui';
 import { ArrowRight, Tag, CalendarDays } from 'lucide-react';
 import Image from 'next/image';
 
@@ -20,6 +21,14 @@ export default async function ProblemListPage() {
         <p className="mt-4 text-lg leading-8 text-muted-foreground sm:mt-6">
           Explore expertly crafted solutions for CSES problems. Enhance your understanding and coding skills.
         </p>
+      </div>
+
+      <div className="max-w-md mx-auto mb-8">
+        <Input
+          placeholder="Search solutions by title..."
+          // TODO: Add state and filtering logic
+          className="w-full"
+        />
       </div>
 
       {solutions.length === 0 ? (
