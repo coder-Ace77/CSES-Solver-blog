@@ -14,7 +14,7 @@ export default async function handler(
   // In a real application, fetch user from database (MongoDB)
   // For simplicity, using environment variables
   const adminUsername = process.env.ADMIN_USERNAME;
-  const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH; // Store hashed password in env
+  const adminPasswordHash = process.env.ADMIN_HASHED_PASSWORD; // Store hashed password in env
 
   if (!adminUsername || !adminPasswordHash) {
     console.error("Admin credentials not set in environment variables.");
