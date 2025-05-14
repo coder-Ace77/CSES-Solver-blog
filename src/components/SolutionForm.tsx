@@ -2,7 +2,7 @@
 'use client';
 
 import type { ChangeEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useActionState } from 'react'; // Updated import
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import type { SolutionSection, SolutionSectionType, SolutionSubmission } from '@/lib/types';
 import { createSolutionAction } from '@/lib/actions';
-import { useFormState } from 'react-dom';
+// Removed: import { useFormState } from 'react-dom'; 
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
@@ -62,9 +62,10 @@ const popularLanguages = [
 export function SolutionForm() {
   const { toast } = useToast();
   const router = useRouter();
-  const [formState, formAction] = useFormState(createSolutionAction, initialFormState);
+  // Updated to useActionState
+  const [state, formAction, isPending] = useActionState(createSolutionAction, initialFormState);
 
-  const { control, handleSubmit, register, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<SolutionFormData>({
+  const { control, handleSubmit, register, reset, setValue, watch, formState: { errors /* Removed isSubmitting here as isPending from useActionState will be used */ } } = useForm<SolutionFormData>({
     resolver: zodResolver(solutionFormSchema),
     defaultValues: {
       title: '',
@@ -84,18 +85,18 @@ export function SolutionForm() {
   const watchedSections = watch('sections');
 
   useEffect(() => {
-    if (formState.message) {
+    if (state.message) { // Changed from formState to state
       toast({
-        title: formState.success ? 'Success!' : 'Error',
-        description: formState.message,
-        variant: formState.success ? 'default' : 'destructive',
+        title: state.success ? 'Success!' : 'Error', // Changed from formState to state
+        description: state.message, // Changed from formState to state
+        variant: state.success ? 'default' : 'destructive', // Changed from formState to state
       });
-      if (formState.success && formState.solutionId) {
+      if (state.success && state.solutionId) { // Changed from formState to state
         reset(); 
-        router.push(`/problems/${formState.solutionId}`);
+        router.push(`/problems/${state.solutionId}`); // Changed from formState to state
       }
     }
-  }, [formState, toast, reset, router]);
+  }, [state, toast, reset, router]); // Changed from formState to state
   
   const onSubmit = (data: SolutionFormData) => {
     const formData = new FormData();
@@ -238,8 +239,8 @@ export function SolutionForm() {
           
         </CardContent>
         <CardFooter>
-          <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          <Button type="submit" className="w-full text-lg py-6" disabled={isPending}> {/* Updated disabled prop */}
+            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} {/* Updated loading indicator */}
             Submit Solution
           </Button>
         </CardFooter>
