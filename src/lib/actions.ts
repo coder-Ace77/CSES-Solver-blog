@@ -33,11 +33,13 @@ export async function createSolutionAction(
   prevState: { message: string; success: boolean; solutionId?: string },
   formData: FormData
 ): Promise<{ message: string; success: boolean; solutionId?: string }> {
+  console.log("createSolutionAction: Received form data.");
   const rawSections = formData.get('sections') as string;
   let parsedSections;
   try {
     parsedSections = JSON.parse(rawSections || '[]');
   } catch (e) {
+    console.error("createSolutionAction: Invalid sections JSON.", e);
     return { message: 'Invalid sections format.', success: false };
   }
 
@@ -58,7 +60,7 @@ export async function createSolutionAction(
 
   if (!validatedFields.success) {
     const errorDetails = validatedFields.error.flatten().fieldErrors;
-    console.error("Validation failed:", errorDetails);
+    console.error("createSolutionAction: Validation failed:", errorDetails);
     return {
       message: "Validation failed: " + (Object.values(errorDetails).flat().join(', ') || "Unknown error"),
       success: false,
@@ -66,13 +68,16 @@ export async function createSolutionAction(
   }
 
   try {
+    console.log("createSolutionAction: Calling dbAddSolution with data:", validatedFields.data);
     const newSolution = await dbAddSolution(validatedFields.data as SolutionSubmission);
+    console.log("createSolutionAction: dbAddSolution successful, new solution ID:", newSolution.id);
     revalidatePath('/'); 
     revalidatePath('/admin');
     revalidatePath(`/problems/${newSolution.id}`); 
+    console.log("createSolutionAction: Paths revalidated.");
     return { message: 'Solution submitted successfully! It is now awaiting admin approval.', success: true, solutionId: newSolution.id };
   } catch (error) {
-    console.error("Error submitting solution:", error);
+    console.error("createSolutionAction: Error submitting solution to DB:", error);
     return { message: 'Failed to submit solution.', success: false };
   }
 }
@@ -113,21 +118,27 @@ export async function updateSolutionSectionsAction(solutionId: string, sectionId
 }
 
 export async function toggleSolutionApprovalAction(solutionId: string): Promise<{ success: boolean; message: string, newStatus?: boolean }> {
+  console.log(`toggleSolutionApprovalAction: Attempting to toggle approval for solution ID: ${solutionId}`);
   try {
     const updatedSolution = await dbToggleSolutionApproval(solutionId);
     if (!updatedSolution) {
+      console.warn(`toggleSolutionApprovalAction: Solution not found for ID: ${solutionId}`);
       return { success: false, message: "Solution not found." };
     }
+    console.log(`toggleSolutionApprovalAction: DB toggle successful for ID: ${solutionId}. New status: ${updatedSolution.isApproved}`);
+    
     revalidatePath('/');
     revalidatePath('/admin');
     revalidatePath(`/problems/${solutionId}`);
+    console.log(`toggleSolutionApprovalAction: Paths revalidated for ID: ${solutionId}`);
+    
     return { 
       success: true, 
       message: `Solution ${updatedSolution.isApproved ? 'approved' : 'unapproved'} successfully.`,
       newStatus: updatedSolution.isApproved 
     };
   } catch (error) {
-    console.error("Error toggling solution approval:", error);
+    console.error(`toggleSolutionApprovalAction: Error toggling solution approval for ID: ${solutionId}`, error);
     return { success: false, message: "Failed to update approval status." };
   }
 }
@@ -172,6 +183,6 @@ export async function loginAdminAction(credentials: z.infer<typeof loginSchema>)
 
 export async function logoutAdminAction(): Promise<{ success: boolean }> {
   cookies().delete(ADMIN_AUTH_COOKIE_NAME);
-  // No need to revalidatePath here, client will redirect
   return { success: true };
 }
+

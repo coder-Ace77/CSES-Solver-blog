@@ -2,7 +2,7 @@
 'use client';
 
 import type { Solution } from '@/lib/types';
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react'; // Added useEffect
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -20,10 +20,17 @@ export default function AdminSolutionList({ initialSolutions }: AdminSolutionLis
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
+  // Effect to update local state if initialSolutions prop changes
+  useEffect(() => {
+    setSolutions(initialSolutions);
+  }, [initialSolutions]);
+
   const handleToggleApproval = (solutionId: string) => {
     startTransition(async () => {
       const result = await toggleSolutionApprovalAction(solutionId);
       if (result.success) {
+        // Optimistically update or rely on prop refresh.
+        // For now, we update local state and expect revalidation to confirm.
         setSolutions(prevSolutions =>
           prevSolutions.map(s =>
             s.id === solutionId ? { ...s, isApproved: result.newStatus!, updatedAt: new Date().toISOString() } : s
