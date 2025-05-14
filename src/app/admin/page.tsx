@@ -14,8 +14,12 @@ export default async function AdminPage() {
   return (
     <div className="py-8">
       <div className="mb-8 text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-primary sm:text-5xl">Admin Dashboard</h1>
-        <p className="mt-3 text-lg text-muted-foreground">Manage and approve submitted solutions.</p>
+        <h1 className="text-4xl font-bold tracking-tight text-primary sm:text-5xl">
+          Admin Dashboard
+        </h1>
+        <p className="mt-3 text-lg text-muted-foreground">
+          Manage and approve submitted solutions.
+        </p>
       </div>
       {solutions.length === 0 ? (
         <Card className="text-center p-10">
@@ -29,4 +33,5 @@ export default async function AdminPage() {
       )}
     </div>
   );
+}
 }
