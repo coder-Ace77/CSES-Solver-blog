@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
   webpack: (config, { isServer }) => {
@@ -33,6 +39,7 @@ const nextConfig: NextConfig = {
     // Add resolution fallback for 'snappy' if needed, though less likely with the external above
     config.resolve.fallback = config.resolve.fallback || {};
     config.resolve.fallback.snappy = false; // Prevent snappy module errors
+    config.resolve.fallback.child_process = false; // Prevent child_process module errors on client
 
     return config;
   },

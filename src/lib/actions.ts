@@ -10,19 +10,20 @@ import {
 } from '@/lib/db';
 import type { Solution, SolutionSection, SolutionSubmission } from '@/lib/types';
 import { summarizeSolution as aiSummarizeSolution } from '@/ai/flows/summarize-solution';
-// Removed: import { suggestTagsCategories as aiSuggestTagsCategories } from '@/ai/flows/suggest-tags-categories';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 
 const solutionSectionSchema = z.object({
+  id: z.string().optional(), // ID might not be present on creation, but will be on update
   type: z.enum(['heading', 'paragraph', 'code', 'equation', 'hint']),
   content: z.string().min(1, "Section content cannot be empty."),
-  language: z.string().optional(), // For code snippets
+  language: z.string().optional(), 
 });
 
 const solutionSubmissionSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters long."),
   problemId: z.string().min(1, "Problem ID/Name is required."),
-  problemStatementLink: z.string().url().optional().or(z.literal('')),
+  problemStatementLink: z.string().url({message: "Invalid URL format."}).optional().or(z.literal('')),
   sections: z.array(solutionSectionSchema).min(1, "At least one section is required."),
   tags: z.string(), 
   category: z.string().min(1, "Category is required."),
@@ -46,7 +47,7 @@ export async function createSolutionAction(
     problemStatementLink: formData.get('problemStatementLink'),
     tags: formData.get('tags'),
     category: formData.get('category'),
-    sections: parsedSections.map((s: any) => ({ // Type assertion for s
+    sections: parsedSections.map((s: any) => ({
       type: s.type,
       content: s.content,
       language: s.type === 'code' ? s.language || 'plaintext' : undefined,
@@ -131,11 +132,46 @@ export async function toggleSolutionApprovalAction(solutionId: string): Promise<
   }
 }
 
-// Removed suggestTagsAndCategoryAction
-// export async function suggestTagsAndCategoryAction(solutionContent: {
-// title: string;
-// problemId: string;
-// sectionsText: string;
-// }): Promise<{ tags: string[]; categories: string[] } | { error: string }> {
-//   // ... implementation
-// }
+// Admin Authentication Actions
+const ADMIN_AUTH_COOKIE_NAME = 'admin_auth_token';
+
+const loginSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+});
+
+export async function loginAdminAction(credentials: z.infer<typeof loginSchema>): Promise<{ success: boolean; error?: string }> {
+  const validatedCredentials = loginSchema.safeParse(credentials);
+  if (!validatedCredentials.success) {
+    return { success: false, error: 'Invalid input.' };
+  }
+
+  const { username, password } = validatedCredentials.data;
+
+  const adminUsername = process.env.ADMIN_USERNAME;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminUsername || !adminPassword) {
+    console.error('ADMIN_USERNAME or ADMIN_PASSWORD environment variables are not set.');
+    return { success: false, error: 'Server configuration error.' };
+  }
+
+  if (username === adminUsername && password === adminPassword) {
+    cookies().set(ADMIN_AUTH_COOKIE_NAME, 'true', { // Simple token value
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      path: '/admin', // Scope cookie to admin paths
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+    });
+    return { success: true };
+  } else {
+    return { success: false, error: 'Invalid username or password.' };
+  }
+}
+
+export async function logoutAdminAction(): Promise<{ success: boolean }> {
+  cookies().delete(ADMIN_AUTH_COOKIE_NAME);
+  // No need to revalidatePath here, client will redirect
+  return { success: true };
+}
