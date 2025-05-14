@@ -2,7 +2,7 @@
 'use client';
 
 import type { Solution } from '@/lib/types';
-import { useState, useTransition, useEffect } from 'react'; // Added useEffect
+import { useState, useTransition, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -20,7 +20,6 @@ export default function AdminSolutionList({ initialSolutions }: AdminSolutionLis
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
-  // Effect to update local state if initialSolutions prop changes
   useEffect(() => {
     setSolutions(initialSolutions);
   }, [initialSolutions]);
@@ -28,9 +27,7 @@ export default function AdminSolutionList({ initialSolutions }: AdminSolutionLis
   const handleToggleApproval = (solutionId: string) => {
     startTransition(async () => {
       const result = await toggleSolutionApprovalAction(solutionId);
-      if (result.success) {
-        // Optimistically update or rely on prop refresh.
-        // For now, we update local state and expect revalidation to confirm.
+      if (result.success && typeof result.newStatus === 'boolean') {
         setSolutions(prevSolutions =>
           prevSolutions.map(s =>
             s.id === solutionId ? { ...s, isApproved: result.newStatus!, updatedAt: new Date().toISOString() } : s
@@ -40,10 +37,20 @@ export default function AdminSolutionList({ initialSolutions }: AdminSolutionLis
           title: 'Success',
           description: result.message,
         });
-      } else {
+      } else if (result.success && typeof result.newStatus !== 'boolean') {
+        // This case indicates an issue with the server action's response
+        console.error("AdminSolutionList: Action succeeded but newStatus is not a boolean.", result);
+        toast({
+          title: 'Update Incomplete',
+          description: 'Status might have updated on the server, but UI could not be synced. Please refresh.',
+          variant: 'destructive',
+        });
+        // Consider a router.refresh() if this state is common, to pull fresh server data.
+      }
+      else { // result.success is false
         toast({
           title: 'Error',
-          description: result.message,
+          description: result.message || 'Failed to update solution status. Please try again.',
           variant: 'destructive',
         });
       }

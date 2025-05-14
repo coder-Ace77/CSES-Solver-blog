@@ -121,21 +121,40 @@ export async function updateSolution(id: string, updatedSections: SolutionSectio
 
 
 export async function toggleSolutionApproval(id: string): Promise<Solution | undefined> {
+  console.log(`[db] Attempting to toggle approval for solution ID: ${id}`);
   const collection = await getSolutionsCollection();
   const now = new Date().toISOString();
 
   const solution = await collection.findOne({ id });
   if (!solution) {
+    console.warn(`[db] Solution with ID: ${id} not found during initial findOne.`);
     return undefined;
   }
+  console.log(`[db] Found solution ID: ${id}, current approval status: ${solution.isApproved}`);
+
+  const newApprovalStatus = !solution.isApproved;
+  console.log(`[db] Target new approval status for ID: ${id} will be: ${newApprovalStatus}`);
 
   const result = await collection.findOneAndUpdate(
     { id },
-    { $set: { isApproved: !solution.isApproved, updatedAt: now } },
+    { $set: { isApproved: newApprovalStatus, updatedAt: now } },
     { returnDocument: 'after' }
   );
 
-  return result.value ? mongoDocToPlainSolution(result.value) : undefined;
+  if (!result.value) {
+    console.warn(`[db] findOneAndUpdate did not return a document for ID: ${id}. Update may have failed or document no longer exists at the time of update.`);
+    // Optionally, re-check if the document still exists to understand the failure.
+    const checkAgain = await collection.findOne({ id });
+    if (checkAgain) {
+        console.log(`[db] Document ID: ${id} still exists after findOneAndUpdate attempt, but was not returned. Current DB approval status: ${checkAgain.isApproved}`);
+    } else {
+        console.log(`[db] Document ID: ${id} appears to no longer exist after findOneAndUpdate attempt.`);
+    }
+    return undefined;
+  }
+  
+  console.log(`[db] Successfully updated solution ID: ${id}. New status in DB from returned doc: ${result.value.isApproved}`);
+  return mongoDocToPlainSolution(result.value);
 }
 
 
@@ -156,10 +175,11 @@ async function connectToDatabase(): Promise<Db> {
     throw new Error('Please define the DB_NAME environment variable inside .env');
   }
   
+  // Removed tls options as they are generally not needed for SRV connection strings
+  // and might conflict with Vercel's environment.
   const client = await MongoClient.connect(MONGODB_URI);
 
   const db = client.db(DB_NAME);
   cachedDb = db;
   return db;
 }
-
