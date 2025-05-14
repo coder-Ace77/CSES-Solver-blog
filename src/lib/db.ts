@@ -155,20 +155,11 @@ async function connectToDatabase(): Promise<Db> {
   if (!DB_NAME) {
     throw new Error('Please define the DB_NAME environment variable inside .env');
   }
-
-  // Ensure the MONGODB_URI includes the appName for newer MongoDB versions if needed
-  // Example: mongodb+srv://<username>:<password>@<cluster>/<dbname>?retryWrites=true&w=majority&appName=YourAppName
-  // Or ensure your connection string from Atlas is correctly pasted.
   
-  // For TLS/SSL issues, especially with specific Node.js versions or environments,
-  // you might need to configure TLS options. However, start with the simplest connection.
-  // If 'tlsv1 alert internal error' persists, it could be network, firewall, Node version, or MongoDB Atlas IP whitelist.
-  const client = await MongoClient.connect(MONGODB_URI, {
-    // tls: true, // Explicitly enable TLS; often default for srv strings
-    // tlsAllowInvalidCertificates: process.env.NODE_ENV !== 'production', // For local dev if needed, NOT for prod
-  });
+  const client = await MongoClient.connect(MONGODB_URI);
 
   const db = client.db(DB_NAME);
   cachedDb = db;
   return db;
 }
+
