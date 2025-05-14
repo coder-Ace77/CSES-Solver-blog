@@ -10,7 +10,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 
 
 type Props = {
-  params: { slug: string };
+  params: { slug: string }; // This type refers to the resolved shape of params.
+                           // The runtime object might be treated as awaitable by Next.js.
 };
 
 export async function generateStaticParams() {
@@ -21,10 +22,15 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata(
-  { params }: Props,
+  { params }: Props, // params here is the destructured prop.
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const solution = await getSolutionById(params.slug);
+  // Await the params object itself as per the Next.js error message.
+  // If 'params' is not a Promise, 'await' will resolve it to itself.
+  // If Next.js passes it in a way that requires awaiting, this handles it.
+  const resolvedParams = await params; 
+  const slug = resolvedParams.slug;
+  const solution = await getSolutionById(slug);
 
   if (!solution) {
     return {
@@ -32,8 +38,6 @@ export async function generateMetadata(
     };
   }
   
-  // Metadata should be available even if pending approval, for admin viewing etc.
-  // The content restriction is handled by the page component / SolutionDisplay.
   return {
     title: `${solution.title}${solution.isApproved ? '' : ' (Pending Approval)'} | CSES Solver Blogs`,
     description: `Solution for CSES problem: ${solution.problemId}. Category: ${solution.category}. Tags: ${solution.tags.join(', ')}.`,
@@ -41,14 +45,14 @@ export async function generateMetadata(
 }
 
 export default async function SolutionPage({ params }: Props) {
-  const solution = await getSolutionById(params.slug);
+  // Await the params object itself as per the Next.js error message.
+  const resolvedParams = await params;
+  const slug = resolvedParams.slug;
+  const solution = await getSolutionById(slug);
 
   if (!solution) {
     notFound();
   }
-
-  // The SolutionDisplay component itself will show an "awaiting approval" message if !solution.isApproved
-  // No need for an explicit check here to redirect, as admins might want to view it via direct link.
 
   return (
     <div className="py-8">
@@ -64,4 +68,3 @@ export default async function SolutionPage({ params }: Props) {
     </div>
   );
 }
-
