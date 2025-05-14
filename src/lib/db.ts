@@ -141,20 +141,30 @@ export async function toggleSolutionApproval(id: string): Promise<Solution | und
     { returnDocument: 'after' }
   );
 
-  if (!result.value) {
-    console.warn(`[db] findOneAndUpdate did not return a document for ID: ${id}. Update may have failed or document no longer exists at the time of update.`);
-    // Optionally, re-check if the document still exists to understand the failure.
-    const checkAgain = await collection.findOne({ id });
-    if (checkAgain) {
-        console.log(`[db] Document ID: ${id} still exists after findOneAndUpdate attempt, but was not returned. Current DB approval status: ${checkAgain.isApproved}`);
+  if (result.value) {
+    // Ideal case: findOneAndUpdate returns the updated document
+    console.log(`[db] Successfully updated solution ID: ${id} via findOneAndUpdate. New status in DB from returned doc: ${result.value.isApproved}`);
+    return mongoDocToPlainSolution(result.value);
+  } else {
+    // Fallback: findOneAndUpdate did not return the document, but the update might have occurred.
+    console.warn(`[db] findOneAndUpdate did not return a document for ID: ${id}. Checking if update occurred via separate findOne.`);
+    const updatedDoc = await collection.findOne({ id });
+    if (updatedDoc) {
+      // If we find the doc, and its status matches the intended newApprovalStatus, the update likely succeeded.
+      if (updatedDoc.isApproved === newApprovalStatus) {
+        console.log(`[db] Confirmed update for ID: ${id} via findOne. New status: ${updatedDoc.isApproved}. Returning this document.`);
+        return mongoDocToPlainSolution(updatedDoc);
+      } else {
+        // This would be strange: doc exists but status isn't what we set. Indicates a more complex issue.
+        console.error(`[db] Discrepancy for ID: ${id}. Doc found but approval status ${updatedDoc.isApproved} does not match target ${newApprovalStatus}. This implies the update itself might have failed or an unexpected race condition occurred.`);
+        return undefined; // Indicate a problem
+      }
     } else {
-        console.log(`[db] Document ID: ${id} appears to no longer exist after findOneAndUpdate attempt.`);
+      // Document truly not found after update attempt.
+      console.error(`[db] Document ID: ${id} not found even with separate findOne after update attempt. The solution might have been deleted concurrently.`);
+      return undefined;
     }
-    return undefined;
   }
-  
-  console.log(`[db] Successfully updated solution ID: ${id}. New status in DB from returned doc: ${result.value.isApproved}`);
-  return mongoDocToPlainSolution(result.value);
 }
 
 
@@ -175,11 +185,10 @@ async function connectToDatabase(): Promise<Db> {
     throw new Error('Please define the DB_NAME environment variable inside .env');
   }
   
-  // Removed tls options as they are generally not needed for SRV connection strings
-  // and might conflict with Vercel's environment.
   const client = await MongoClient.connect(MONGODB_URI);
 
   const db = client.db(DB_NAME);
   cachedDb = db;
   return db;
 }
+
